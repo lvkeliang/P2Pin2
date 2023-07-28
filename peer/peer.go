@@ -186,7 +186,7 @@ func main() {
 	bitfie := t.PieceHashes
 	pieceLength := 12 * 1024
 
-	listener, err := net.Listen("tcp", "localhost:8096")
+	listener, err := net.Listen("tcp", "127.0.0.1:8096")
 	if err != nil {
 		log.Fatal(err)
 	}

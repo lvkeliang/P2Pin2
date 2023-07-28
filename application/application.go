@@ -22,10 +22,11 @@ type Client struct {
 }
 
 func CompleteHandshake(conn net.Conn, infohash, peerID [20]byte) (*handshake.Handshake, error) {
-	conn.SetDeadline(time.Now().Add(10 * time.Second))
+	conn.SetDeadline(time.Now().Add(60 * time.Second))
 	defer conn.SetDeadline(time.Time{}) // Disable the deadline
 
 	req := handshake.New(infohash, peerID)
+	fmt.Println("111111111111: %v\n", req.Serialize())
 	_, err := conn.Write(req.Serialize())
 	if err != nil {
 		return nil, err
@@ -42,7 +43,7 @@ func CompleteHandshake(conn net.Conn, infohash, peerID [20]byte) (*handshake.Han
 }
 
 func recvBitfield(conn net.Conn) (bitfield.Bitfield, error) {
-	conn.SetDeadline(time.Now().Add(10 * time.Second))
+	conn.SetDeadline(time.Now().Add(60 * time.Second))
 	defer conn.SetDeadline(time.Time{}) // Disable the deadline
 	msg, err := logic.Read(conn)
 	if err != nil {
@@ -63,7 +64,7 @@ func recvBitfield(conn net.Conn) (bitfield.Bitfield, error) {
 // New connects with a peer, completes a handshake, and receives a handshake
 // returns an err if any of those fail.
 func New(peer logic.Peer, peerID, infoHash [20]byte) (*Client, error) {
-	conn, err := net.DialTimeout("tcp", peer.String(), 15*time.Second)
+	conn, err := net.DialTimeout("tcp", peer.String(), 60*time.Second)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +85,7 @@ func New(peer logic.Peer, peerID, infoHash [20]byte) (*Client, error) {
 
 	return &Client{
 		Conn:     conn,
-		Choked:   true,
+		Choked:   false,
 		Bitfield: bf,
 		peer:     peer,
 		infoHash: infoHash,
@@ -102,6 +103,7 @@ func (c *Client) Read() (*logic.Message, error) {
 func (c *Client) SendRequest(index, begin, length int) error {
 	req := logic.FormatRequest(index, begin, length)
 	_, err := c.Conn.Write(req.Serialize())
+	fmt.Println("111111111111111", err)
 	return err
 }
 

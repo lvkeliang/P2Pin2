@@ -81,43 +81,49 @@ func (state *PieceProgress) readMessage() error {
 }
 
 func attemptDownloadPiece(c *application.Client, pw *pieceWork) ([]byte, error) {
-	state := PieceProgress{
-		index:  pw.index,
-		client: c,
-		buf:    make([]byte, pw.length),
+	state := PieceProgress{ // 创建一个 PieceProgress 类型的变量，用于存储下载进度
+		index:  pw.index,                // 索引
+		client: c,                       // 客户端
+		buf:    make([]byte, pw.length), // 缓冲区
 	}
 
-	// Setting a deadline helps get unresponsive peers unstuck.
-	// 30 seconds is more than enough time to download a 262 KB piece
-	c.Conn.SetDeadline(time.Now().Add(30 * time.Second))
-	defer c.Conn.SetDeadline(time.Time{}) // Disable the deadline
-
-	for state.downloaded < pw.length {
-		// If unchoked, send requests until we have enough unfulfilled requests
+	// 设置一个 60 秒的截止时间，以帮助解决无响应的对等点问题
+	c.Conn.SetDeadline(time.Now().Add(60 * time.Second))
+	defer c.Conn.SetDeadline(time.Time{}) // 禁用截止时间
+	for state.downloaded < pw.length {    // 当下载的字节数小于文件块的长度时，继续循环
+		// 如果客户端未被阻塞，则发送请求直到达到最大积压量或请求完成
 		if !state.client.Choked {
 			for state.backlog < MaxBacklog && state.requested < pw.length {
-				blockSize := MaxBlockSize
-				// Last block might be shorter than the typical block
+				blockSize := MaxBlockSize // 设置块大小为最大块大小
+				// 如果剩余的字节数小于块大小，则将块大小设置为剩余的字节数
 				if pw.length-state.requested < blockSize {
 					blockSize = pw.length - state.requested
 				}
 
-				err := c.SendRequest(pw.index, state.requested, blockSize)
-				if err != nil {
+				//err := c.SendRequest(pw.index, state.requested, blockSize) // 发送请求
+				req := logic.FormatRequest(pw.index, state.requested, blockSize)
+				fmt.Printf("pw.index: %v, state.requested: %v, blockSize: %v\n", pw.index, state.requested, blockSize)
+				_, err := c.Conn.Write(req.Serialize())
+
+				if err != nil { // 如果发送请求出错，则返回空字节数组和错误
+
 					return nil, err
 				}
-				state.backlog++
-				state.requested += blockSize
+
+				state.backlog++              // 增加积压量
+				state.requested += blockSize // 增加已请求的字节数
+
 			}
 		}
 
-		err := state.readMessage()
-		if err != nil {
+		err := state.readMessage() // 读取消息
+		if err != nil {            // 如果读取消息出错，则返回空字节数组和错误
 			return nil, err
 		}
 	}
 
-	return state.buf, nil
+	return state.buf, nil // 当下载完成时，返回缓冲区中的数据和空错误
+
 }
 
 func checkIntegrity(pw *pieceWork, buf []byte) error {
@@ -134,6 +140,7 @@ func (t *Torrent) startDownloadWorker(peer logic.Peer, workQueue chan *pieceWork
 		log.Printf("Could not handshake with %s. Disconnecting\n", peer.IP)
 		return
 	}
+
 	defer c.Conn.Close()
 	log.Printf("Completed handshake with %s\n", peer.IP)
 	c.SendUnchoke()
@@ -143,19 +150,23 @@ func (t *Torrent) startDownloadWorker(peer logic.Peer, workQueue chan *pieceWork
 			workQueue <- pw // Put piece back on the queue
 			continue
 		}
+
 		// Download the piece
 		buf, err := attemptDownloadPiece(c, pw)
+
 		if err != nil {
 			log.Println("Exiting", err)
 			workQueue <- pw // Put piece back on the queue
 			return
 		}
+
 		err = checkIntegrity(pw, buf)
 		if err != nil {
 			log.Printf("Piece #%d failed integrity check\n", pw.index)
 			workQueue <- pw // Put piece back on the queue
 			continue
 		}
+
 		c.SendHave(pw.index)
 		results <- &pieceResult{pw.index, buf}
 	}
@@ -185,12 +196,10 @@ func (t *Torrent) Download() ([]byte, error) {
 		length := t.calculatePieceSize(index)
 		workQueue <- &pieceWork{index, hash, length}
 	}
-
 	// Start workers
 	for _, peer := range t.Peers {
 		go t.startDownloadWorker(peer, workQueue, results)
 	}
-
 	// Collect results into a buffer until full
 	buf := make([]byte, t.Length)
 	donePieces := 0
@@ -199,7 +208,6 @@ func (t *Torrent) Download() ([]byte, error) {
 		begin, end := t.calculateBoundsForPiece(res.index)
 		copy(buf[begin:end], res.buf)
 		donePieces++
-
 		percent := float64(donePieces) / float64(len(t.PieceHashes)) * 100
 		numWorkers := runtime.NumGoroutine() - 1 // subtract 1 for main thread
 		log.Printf("(%0.2f%%) Downloaded piece #%d from %d peers\n", percent, res.index, numWorkers)

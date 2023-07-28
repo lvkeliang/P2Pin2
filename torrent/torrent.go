@@ -74,7 +74,6 @@ func (t *TorrentFile) DownloadToFile(path string) error {
 		return err
 	}
 	defer outFile.Close()
-	fmt.Println("1111111111111111115")
 	_, err = outFile.Write(buf)
 	if err != nil {
 		return err
@@ -198,7 +197,7 @@ type TrackerResponse struct {
 
 func (t *TorrentFile) requestPeers(peerID [20]byte, port uint16) ([]logic.Peer, error) {
 	url := t.Announce
-	c := &http.Client{Timeout: 15 * time.Second}
+	c := &http.Client{Timeout: 60 * time.Second}
 	resp, err := c.Get(url)
 	if err != nil {
 		return nil, err
@@ -220,7 +219,7 @@ func (t *TorrentFile) requestPeers(peerID [20]byte, port uint16) ([]logic.Peer, 
 	return trackerResp.Peers, nil
 }
 
-// 保存为json
+// SaveTorrentFile 保存为json
 func (tf *TorrentFile) SaveTorrentFile(filename string) error {
 	// 将结构体编码为 JSON 字符串
 	data, err := json.Marshal(tf)
