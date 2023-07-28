@@ -1,14 +1,14 @@
 package torrent
 
 import (
-	"P2Pin2/logic"
-	"P2Pin2/protocol"
 	"bytes"
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/json"
 	"fmt"
 	"github.com/jackpal/bencode-go"
+	"github.com/lvkeliang/P2Pin2/logic"
+	"github.com/lvkeliang/P2Pin2/protocol"
 	"io"
 	"io/ioutil"
 	"net/http"
